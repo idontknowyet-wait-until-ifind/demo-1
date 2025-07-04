@@ -1,0 +1,53 @@
+name: localstack
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/envs/dev/**'
+
+  workflow_dispatch:
+jobs:
+  dev-ci:
+    runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -s http://localhost:4566/_localstack/health | grep '\"services\"'" 
+          --health-interval 10s 
+          --health-timeout 5s 
+          --health-retries 20
+        env:
+          SERVICES: s3,sqs,logs
+          DEBUG: 1
+          DEFAULT_REGION: us-east-1
+
+    steps:
+      - name: Verify LocalStack is Running
+        run: |
+          echo "Waiting for LocalStack to be healthy..."
+          for i in {1..10}; do
+            STATUS=$(curl -s http://localhost:4566/_localstack/health | jq -r '.services | to_entries[] | select(.value!="running") | .key' | wc -l)
+            if [ "$STATUS" -eq 0 ]; then
+              echo "✅ All LocalStack services are running"
+              curl -s http://localhost:4566/_localstack/health | jq
+              exit 0
+            fi
+            echo "⏳ Waiting for LocalStack to be ready... attempt $i"
+            sleep 10
+          done
+          echo "❌ LocalStack failed to start in time"
+          curl -s http://localhost:4566/_localstack/health | jq
+          exit 1
+
+      - name: Test S3 Command
+        run: |
+          aws --endpoint-url=http://localhost:4566 s3 mb s3://test-bucket
+          aws --endpoint-url=http://localhost:4566 s3 ls
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1

@@ -9,8 +9,6 @@ on:
 
 jobs:
   dev-ci:
-    runs-on: ubuntu-latest
-
     runs-on: self-hosted
 
     env:
@@ -22,6 +20,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Install dependencies (jq)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Check if LocalStack is running
         run: |
@@ -42,10 +45,8 @@ jobs:
       - name: Verify bucket creation
         run: aws --endpoint-url=$AWS_ENDPOINT_URL s3 ls
 
-
       - name: Confirm LocalStack is running
-        run: |
-          curl -s http://localhost:4566/_localstack/health || echo "LocalStack not responding"
+        run: curl -s http://localhost:4566/_localstack/health || echo "LocalStack not responding"
 
       - name: Set plugin cache environment variable
         run: echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> $GITHUB_ENV
@@ -59,9 +60,7 @@ jobs:
       - name: Validate Terragrunt configuration
         run: terragrunt hcl validate
 
-      - name: init terragrunt 
+      - name: Apply Terragrunt (Dev VPC)
         run: |
-          cd infrastructure/envs/dev/vpc 
+          cd infrastructure/envs/dev/vpc
           terragrunt apply --auto-approve --parallelism=40
-          
-     

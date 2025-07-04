@@ -10,21 +10,6 @@ jobs:
   dev-ci:
     runs-on: self-hosted
 
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        ports:
-          - 4566:4566
-        options: >-
-          --health-cmd "curl -s http://localhost:4566/_localstack/health | grep '\"services\"'" 
-          --health-interval 10s 
-          --health-timeout 5s 
-          --health-retries 20
-        env:
-          SERVICES: s3,sqs,logs
-          DEBUG: 1
-          DEFAULT_REGION: us-east-1
-
     steps:
       - name: Verify LocalStack is Running
         run: |

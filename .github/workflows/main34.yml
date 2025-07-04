@@ -1,0 +1,37 @@
+name: Self-Hosted Runner with LocalStack Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-localstack:
+    runs-on: self-hosted
+
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localhost:4566
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Check if LocalStack is running
+        run: |
+          echo "🔍 Checking if LocalStack is running..."
+          if curl -s http://localhost:4566/_localstack/health | jq .; then
+            echo "✅ LocalStack is reachable"
+          else
+            echo "❌ LocalStack is not responding on port 4566"
+            exit 1
+          fi
+
+      - name: List all S3 buckets (should be empty)
+        run: aws --endpoint-url=$AWS_ENDPOINT_URL s3 ls
+
+      - name: Create S3 bucket
+        run: aws --endpoint-url=$AWS_ENDPOINT_URL s3 mb s3://test-bucket
+
+      - name: Verify bucket creation
+        run: aws --endpoint-url=$AWS_ENDPOINT_URL s3 ls

@@ -1,0 +1,68 @@
+name: CI cache for Dev Environment
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/envs/dev/**'
+
+  workflow_dispatch:
+
+jobs:
+  dev-ci:
+    runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack-pro:latest
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -s http://localhost:4566/_localstack/health | grep '\"initialized\": true'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          SERVICES: s3,sqs,lambda,cloudformation,iam,dynamodb,sts,logs
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          DEBUG: 1
+          DOCKER_HOST: unix:///var/run/docker.sock
+          DEFAULT_REGION: us-east-1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        uses: autero1/action-terragrunt@v3
+        with:
+          terragrunt-version: 0.81.7
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Install Checkov & OPA
+        run: |
+          pip install checkov
+          curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+
+      - name: Set AWS credentials for LocalStack
+        run: |
+          echo "AWS_ACCESS_KEY_ID=test" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=test" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
+          echo "AWS_ENDPOINT_URL=http://localhost:4566" >> $GITHUB_ENV
+
+      - name: Confirm LocalStack is running
+        run: |
+          curl -s http://localhost:4566/_localstack/health || echo "LocalStack not responding"
+
+     
